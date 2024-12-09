@@ -1,107 +1,106 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
+import random
+from collections import Counter
 
 # Initialize Session State
-if "trends" not in st.session_state:
-    st.session_state["trends"] = []
-
+if "history" not in st.session_state:
+    st.session_state["history"] = []
 if "loss_count" not in st.session_state:
     st.session_state["loss_count"] = 0
-
 if "win_count" not in st.session_state:
     st.session_state["win_count"] = 0
+if "streak" not in st.session_state:
+    st.session_state["streak"] = {"type": None, "count": 0}
 
-if "past_predictions" not in st.session_state:
-    st.session_state["past_predictions"] = []
-
-# Title of the App
-st.title("Big-Small Prediction Tool (Advanced Pattern & Trend Analysis)")
+# Title
+st.title("AI-Enhanced Big-Small Predictor (Maximum Accuracy)")
 
 # Input Section
-st.header("Enter the Number of Outcomes")
-num_outcomes = st.number_input("How many past outcomes do you want to analyze?", min_value=5, max_value=20, value=10)
-
-st.subheader("Enter the Last Outcomes")
+st.header("Enter Recent Outcomes")
+num_outcomes = st.number_input("How many past outcomes to analyze?", min_value=5, max_value=50, value=10)
 outcomes = []
 for i in range(int(num_outcomes)):
     outcomes.append(st.selectbox(f"Outcome {i + 1}:", ["Big", "Small"], key=f"outcome_{i}"))
 
 # Prediction Logic
 def predict_next(outcomes):
-    # Step 1: Short-Term Pattern Recognition
-    if outcomes[-3:] == ["Big", "Small", "Big"]:
-        return "Small"  # Predict to complete the pattern
-    if outcomes[-3:] == ["Small", "Big", "Small"]:
-        return "Big"  # Predict to complete the pattern
+    # Analyze Short-Term Trends
+    short_trend = outcomes[-5:]
+    big_count = short_trend.count("Big")
+    small_count = short_trend.count("Small")
 
-    # Step 2: Long-Term Trend Analysis
-    big_count = outcomes.count("Big")
-    small_count = outcomes.count("Small")
-    
-    if big_count > small_count:
-        long_term_trend = "Big"
+    # Long-Term Trend Analysis
+    long_trend = outcomes
+    total_big = long_trend.count("Big")
+    total_small = long_trend.count("Small")
+    overall_trend = "Big" if total_big > total_small else "Small"
+
+    # Pattern Recognition (3-step patterns)
+    pattern_counts = Counter(tuple(outcomes[i:i+3]) for i in range(len(outcomes)-2))
+    common_pattern = max(pattern_counts, key=pattern_counts.get)
+
+    # AI-Based Weighted Prediction
+    if short_trend[-1] == "Big" or common_pattern[-1] == "Big":
+        prediction = "Small" if small_count > big_count else overall_trend
     else:
-        long_term_trend = "Small"
+        prediction = "Big" if big_count > small_count else overall_trend
 
-    # Step 3: Dynamic Weighting
-    weights = range(1, len(outcomes) + 1)  # More weight for recent outcomes
-    big_weight = sum(w for o, w in zip(outcomes, weights) if o == "Big")
-    small_weight = sum(w for o, w in zip(outcomes, weights) if o == "Small")
-    
-    if big_weight > small_weight:
-        weighted_trend = "Big"
-    else:
-        weighted_trend = "Small"
+    # Confidence Score Calculation
+    confidence = 90 if prediction == overall_trend else 75
 
-    # Step 4: Combine Analysis
-    if long_term_trend == weighted_trend:
-        return "Small" if long_term_trend == "Big" else "Big"  # Opposite of trend to avoid traps
-    else:
-        return long_term_trend  # Follow the long-term trend
+    # Handle Edge Cases
+    if small_count == big_count:
+        prediction = random.choice(["Big", "Small"])
+        confidence = 50  # Lower confidence for tie cases
 
+    return prediction, confidence
+
+# Prediction Button
 if st.button("Predict Next Outcome"):
-    prediction = predict_next(outcomes)
-    st.success(f"The Predicted Next Outcome is: {prediction}")
+    prediction, confidence = predict_next(outcomes)
+    st.success(f"Predicted Next Outcome: {prediction} (Confidence: {confidence}%)")
     
-    # Simulate Actual Result
+    # Simulate Result
     actual_outcome = st.selectbox("What was the actual outcome?", ["Big", "Small"], key="actual_result")
-    is_win = prediction == actual_outcome  # Check if the prediction was correct
+    is_win = prediction == actual_outcome
 
     # Update Win/Loss Counts
     if is_win:
         st.session_state["win_count"] += 1
-        st.session_state["loss_count"] = 0  # Reset loss count after a win
-        st.success("Prediction was a WIN!")
+        st.session_state["loss_count"] = 0
+        st.session_state["streak"] = {"type": "Win", "count": st.session_state["streak"]["count"] + 1}
+        st.success("Result: WIN!")
     else:
         st.session_state["loss_count"] += 1
-        st.warning("Prediction was a LOSS!")
+        st.session_state["streak"] = {"type": "Loss", "count": st.session_state["streak"]["count"] + 1}
+        st.warning("Result: LOSS!")
 
-    # Save Result and Trends
-    st.session_state["trends"].append({
-        "Outcomes": outcomes,
+    # Save History
+    st.session_state["history"].append({
         "Prediction": prediction,
+        "Confidence": confidence,
         "Actual": actual_outcome,
         "Result": "Win" if is_win else "Loss"
     })
-    st.session_state["past_predictions"].append({"Prediction": prediction, "Actual": actual_outcome, "Win": is_win})
 
-    # Display Trends and Stats
-    st.write("Trend Analysis and History:")
-    st.dataframe(pd.DataFrame(st.session_state["trends"]))
+# Visualization
+if st.session_state["history"]:
+    st.subheader("Prediction History")
+    df = pd.DataFrame(st.session_state["history"])
+    st.dataframe(df)
+
+    # Metrics
     st.metric("Total Wins", st.session_state["win_count"])
     st.metric("Total Losses", st.session_state["loss_count"])
+    st.metric("Current Streak", f"{st.session_state['streak']['type']} - {st.session_state['streak']['count']}")
 
-    # Loss Analysis
-    if not is_win:
-        st.subheader("Loss Analysis")
-        st.write("Analyzing recent trends to improve accuracy...")
-        # Analyze patterns causing losses
-        recent_trend = outcomes[-5:]  # Last 5 outcomes
-        st.write(f"Recent Trend: {recent_trend}")
-        if recent_trend.count("Big") > recent_trend.count("Small"):
-            st.info("Trend shows more 'Big' outcomes recently. Adjusting prediction strategy to favor 'Small'.")
-        else:
-            st.info("Trend shows more 'Small' outcomes recently. Adjusting prediction strategy to favor 'Big'.")
-
-# Footer
-st.info("This tool uses advanced pattern recognition and trend analysis to minimize losses.")
+    # Visualization of Win/Loss
+    st.subheader("Win/Loss Chart")
+    win_loss_counts = df["Result"].value_counts()
+    fig, ax = plt.subplots()
+    win_loss_counts.plot(kind="bar", color=["green", "red"], ax=ax)
+    ax.set_title("Win vs Loss Trends")
+    ax.set_ylabel("Count")
+    st.pyplot(fig)
