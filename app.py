@@ -15,19 +15,19 @@ if "streak" not in st.session_state:
     st.session_state["streak"] = {"type": None, "count": 0}
 
 # Title
-st.title("AI-Enhanced Big-Small Predictor (Maximum Accuracy)")
+st.title("AI-Enhanced Big-Small Predictor (Max Accuracy)")
 
 # Input Section
 st.header("Enter Recent Outcomes")
-num_outcomes = st.number_input("How many past outcomes to analyze?", min_value=5, max_value=50, value=10)
+num_outcomes = int(st.number_input("How many past outcomes to analyze?", min_value=5, max_value=50, value=10))
 outcomes = []
-for i in range(int(num_outcomes)):
-    outcomes.append(st.selectbox(f"Outcome {i + 1}:", ["Big", "Small"], key=f"outcome_{i}"))
+for i in range(num_outcomes):
+    outcomes.append(st.selectbox(f"Outcome {i + 1}:", ["Big", "Small"], key=f"unique_key_{i}"))
 
 # Prediction Logic
 def predict_next(outcomes):
     # Analyze Short-Term Trends
-    short_trend = outcomes[-5:]
+    short_trend = outcomes[-5:] if len(outcomes) >= 5 else outcomes
     big_count = short_trend.count("Big")
     small_count = short_trend.count("Small")
 
@@ -38,11 +38,14 @@ def predict_next(outcomes):
     overall_trend = "Big" if total_big > total_small else "Small"
 
     # Pattern Recognition (3-step patterns)
-    pattern_counts = Counter(tuple(outcomes[i:i+3]) for i in range(len(outcomes)-2))
-    common_pattern = max(pattern_counts, key=pattern_counts.get)
+    if len(outcomes) >= 3:
+        pattern_counts = Counter(tuple(outcomes[i:i+3]) for i in range(len(outcomes)-2))
+        common_pattern = max(pattern_counts, key=pattern_counts.get)
+    else:
+        common_pattern = None
 
     # AI-Based Weighted Prediction
-    if short_trend[-1] == "Big" or common_pattern[-1] == "Big":
+    if short_trend[-1] == "Big" or (common_pattern and common_pattern[-1] == "Big"):
         prediction = "Small" if small_count > big_count else overall_trend
     else:
         prediction = "Big" if big_count > small_count else overall_trend
